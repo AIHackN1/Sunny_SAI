@@ -25,7 +25,7 @@
 
 ## 개발
 
-Node.js 24.11 이상(24.x)과 pnpm 10을 권장합니다. 저장소의 lockfile에 맞춰 설치합니다.
+Node.js 24.11 이상(24.x)과 pnpm 11.25.0을 권장합니다. 저장소의 lockfile에 맞춰 설치합니다.
 
 ```bash
 corepack enable
