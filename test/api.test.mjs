@@ -25,3 +25,8 @@ test('map health distinguishes provider domain refusal and image failure without
  assert.equal(r.status,200);const text=await r.text();assert.ok(!text.includes(secret));const d=JSON.parse(text);assert.equal(d.origin,base);assert.equal(d.checks[0].message,'SDK 허용 도메인 불일치');assert.equal(d.checks[1].state,'failed');assert.equal(d.checks[1].status,503);
  const missing=await handle(req('/api/map-health','POST',{},a.cookie,a.s.csrf),env,async()=>{throw Error('must not fetch')});assert.ok((await missing.json()).checks.every(c=>c.state==='missing'));
 });
+
+test('disabled Kakao map/local service is distinguished from a domain mismatch',async()=>{
+ const a=await client();const r=await handle(req('/api/map-health','POST',{},a.cookie,a.s.csrf),{...env,KAKAO_JAVASCRIPT_KEY:'test-js-key'},async()=>new Response(JSON.stringify({errorType:'NotAuthorizedError',message:'App(private-app-name) disabled OPEN_MAP_AND_LOCAL service.'}),{status:403,headers:{'content-type':'application/json'}}));
+ const raw=await r.text();const d=JSON.parse(raw);assert.equal(d.checks[0].status,403);assert.match(d.checks[0].message,/사용 설정.*ON/);assert.ok(!raw.includes('private-app-name'));assert.ok(!raw.includes('test-js-key'));assert.ok(!d.checks[0].message.includes('도메인 불일치'));
+});
