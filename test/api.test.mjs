@@ -30,3 +30,13 @@ test('disabled Kakao map/local service is distinguished from a domain mismatch',
  const a=await client();const r=await handle(req('/api/map-health','POST',{},a.cookie,a.s.csrf),{...env,KAKAO_JAVASCRIPT_KEY:'test-js-key'},async()=>new Response(JSON.stringify({errorType:'NotAuthorizedError',message:'App(private-app-name) disabled OPEN_MAP_AND_LOCAL service.'}),{status:403,headers:{'content-type':'application/json'}}));
  const raw=await r.text();const d=JSON.parse(raw);assert.equal(d.checks[0].status,403);assert.match(d.checks[0].message,/사용 설정.*ON/);assert.ok(!raw.includes('private-app-name'));assert.ok(!raw.includes('test-js-key'));assert.ok(!d.checks[0].message.includes('도메인 불일치'));
 });
+
+test('Google voice discovery is scoped to user and selection reaches synthesis without key disclosure',async()=>{
+ const a=await client();const saved=await handle(req('/api/voice/key','POST',{key:fakeKey},a.cookie,a.s.csrf),env);const cookies=a.cookie+'; '+saved.headers.getSetCookie()[0].split(';')[0];
+ const response=await handle(req('/api/voice/voices','POST',{},cookies,a.s.csrf),env,async(url,opts)=>{assert.equal(url,'https://texttospeech.googleapis.com/v1/voices?languageCode=ko-KR');assert.equal(opts.headers['x-goog-api-key'],fakeKey);return Response.json({voices:[{name:'ko-KR-Chirp3-HD-Kore',ssmlGender:'FEMALE'},{name:'en-US-Chirp3-HD-Kore'},{name:'<script>'}]});});
+ assert.deepEqual((await response.json()).voices,[{name:'ko-KR-Chirp3-HD-Kore',gender:'FEMALE'}]);
+ const audio=await handle(req('/api/voice/speak','POST',{text:'선택 음성',voiceName:'ko-KR-Chirp3-HD-Kore',rate:1.1},cookies,a.s.csrf),env,async(url,opts)=>{const data=JSON.parse(opts.body);assert.equal(data.voice.name,'ko-KR-Chirp3-HD-Kore');assert.equal(data.audioConfig.speakingRate,1.1);return Response.json({audioContent:'YXVkaW8='});});assert.equal(audio.status,200);
+ assert.equal((await handle(req('/api/voice/speak','POST',{text:'test',voiceName:'en-US-Other'},cookies,a.s.csrf),env)).status,400);
+ assert.equal((await handle(req('/api/voice/voices','POST',{},a.cookie,a.s.csrf),env)).status,409);
+ const failure=await handle(req('/api/voice/voices','POST',{},cookies,a.s.csrf),env,async()=>new Response(fakeKey,{status:403}));assert.equal(failure.status,502);assert.ok(!(await failure.text()).includes(fakeKey));
+});
