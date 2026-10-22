@@ -42,3 +42,15 @@ test('Gemini key and selected voice reach the correct API; raw PCM becomes playa
  const denied=await handle(req('/api/voice/speak','POST',{text:'test',provider:'gemini',voiceName:'Kore'},cookies,a.s.csrf),env,async()=>new Response(fakeKey,{status:429}));assert.equal(denied.status,502);const error=await denied.text();assert.match(error,/429/);assert.ok(!error.includes(fakeKey));
  const invalid=await handle(req('/api/voice/speak','POST',{text:'test',provider:'gemini',voiceName:'bogus'},cookies,a.s.csrf),env,async()=>{throw Error('must not fetch')});assert.equal(invalid.status,400);
 });
+
+test('AQ authentication keys and future prefixes are accepted without legacy AIza restrictions',async()=>{
+ const a=await client();
+ for(const key of ['AQ.'+'x'.repeat(250)+'._-=','future.'+'y'.repeat(500)]){
+  const response=await handle(req('/api/voice/key','POST',{key:'  '+key+'  ',provider:'cloud'},a.cookie,a.s.csrf),env);
+  assert.equal(response.status,200);const saved=await response.json();assert.equal(saved.provider,key.startsWith('AQ.')?'gemini':'cloud');
+  const cookies=a.cookie+'; '+response.headers.getSetCookie()[0].split(';')[0];
+  const session=await handle(req('/api/session','GET',null,cookies),env);assert.equal((await session.json()).connected,true);
+  if(key.startsWith('AQ.')){const audio=await handle(req('/api/voice/speak','POST',{text:'키 확인',provider:'cloud',voiceName:'Kore'},cookies,a.s.csrf),env,async(url,options)=>{assert.match(url,/generativelanguage.googleapis.com/);assert.equal(options.headers['x-goog-api-key'],key);assert.ok(!url.includes(key));return Response.json({candidates:[{content:{parts:[{inlineData:{mimeType:'audio/L16;rate=24000',data:'AAAAAA=='}}]}}]});});assert.equal(audio.status,200);}
+ }
+ for(const key of ['','short','x'.repeat(2049),'AQ.'+'x'.repeat(20)+'\nInjected: value'])assert.equal((await handle(req('/api/voice/key','POST',{key},a.cookie,a.s.csrf),env)).status,400);
+});
