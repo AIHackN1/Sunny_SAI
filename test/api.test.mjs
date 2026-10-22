@@ -18,3 +18,10 @@ test('expired sessions, unsafe HTTP and malformed keys fail closed',async()=>{co
 test('session rate limit throttles repeated voice calls',async()=>{const a=await client();let response;for(let i=0;i<36;i++)response=await handle(req('/api/voice/key','DELETE',null,a.cookie,a.s.csrf),env);assert.equal(response.status,429);});
 
 test('provider rejection reports safe HTTP status without exposing provider body or REST key',async()=>{const a=await client();const r=await handle(req('/api/search','POST',{query:'서울시청'},a.cookie,a.s.csrf),{...env,KAKAO_REST_API_KEY:'private-rest-key'},async()=>new Response('private-rest-key provider private details',{status:401}));assert.equal(r.status,502);const d=await r.text();assert.match(d,/HTTP 401/);assert.ok(!d.includes('private-rest-key'));assert.ok(!d.includes('provider private details'));});
+
+test('map health distinguishes provider domain refusal and image failure without disclosing keys',async()=>{
+ const a=await client();const secret='never-expose-test-map-key';
+ const r=await handle(req('/api/map-health','POST',{},a.cookie,a.s.csrf),{...env,KAKAO_JAVASCRIPT_KEY:secret,VWORLD_API_KEY:secret},async(url)=>url.includes('kakao')?new Response(JSON.stringify({message:'domain mismatched '+secret}),{status:401,headers:{'content-type':'application/json'}}):new Response(secret,{status:503}));
+ assert.equal(r.status,200);const text=await r.text();assert.ok(!text.includes(secret));const d=JSON.parse(text);assert.equal(d.origin,base);assert.equal(d.checks[0].message,'SDK 허용 도메인 불일치');assert.equal(d.checks[1].state,'failed');assert.equal(d.checks[1].status,503);
+ const missing=await handle(req('/api/map-health','POST',{},a.cookie,a.s.csrf),env,async()=>{throw Error('must not fetch')});assert.ok((await missing.json()).checks.every(c=>c.state==='missing'));
+});
