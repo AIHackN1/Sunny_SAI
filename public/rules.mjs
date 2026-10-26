@@ -1,5 +1,11 @@
 export function assess(f){
  if(!f)return {kind:'unknown',icon:'◌',title:'예보를 확인하지 못했어요',text:'자료가 없거나 예보 범위를 벗어났습니다. 추가 확인이 필요합니다.'};
+ if(f.provider==='kma'){
+ const flags=[];if((f.rain??f.rainMin??0)>=5)flags.push('시간당 강수 '+f.rainLabel+' 예보');if(f.windSpeed>=14)flags.push('풍속 '+f.windSpeed+' m/s 예보');if([2,3,6,7].includes(f.precipitationType))flags.push('눈 또는 비·눈 예보');
+ const values=[];if(typeof f.temperature==='number')values.push(Math.round(f.temperature)+'°C');if(f.rainLabel)values.push('강수 '+f.rainLabel);if(typeof f.windSpeed==='number')values.push('풍속 '+f.windSpeed+' m/s');
+ const missing=f.temperature===null||!f.rainLabel||f.windSpeed===null;
+ return {kind:flags.length?'attention':missing?'unknown':'normal',icon:flags.length?'🌧':'☁',title:flags.length?'출발 전 확인할 기상조건':missing?'일부 예보 항목 확인 필요':'기상청 '+f.product,text:(flags.length?flags:values).join(' · ')+(flags.length?'. 실제 도로상태는 별도 확인하세요.':missing?' · 일부 항목 결측':' · 격자 예보입니다.')};
+ }
  const flags=[];
  if(typeof f.rain==='number'&&f.rain>=5)flags.push(`시간당 강수량 ${f.rain.toFixed(1)} mm 예보`);
  if(typeof f.gust==='number'&&f.gust>=14)flags.push(`순간풍속 ${f.gust.toFixed(1)} m/s 예보`);
